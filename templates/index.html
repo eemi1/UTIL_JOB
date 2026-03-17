@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Find Jobs</title>
+    <link rel="stylesheet" href="{{ url_for('resources', path='css/output.css') }}">
+</head>
+
+<body class="bg-white text-black dark:bg-gray-900 dark:text-white">
+
+    <nav class="flex items-center px-3 justify-between bg-white dark:bg-gray-900 gap-4 border-b dark:border-gray-700">
+        <h1 class="text-2xl p-6 font-bold whitespace-nowrap">Find Jobs</h1>
+
+        <form id="searchForm" class="search max-w-xl flex items-center gap-2 flex-1">
+            <input type="text" 
+                   name="search"
+                   class="w-full p-2 text-lg border-2 rounded 
+                          bg-gray-100 dark:bg-gray-800 
+                          focus:outline-none focus:border-blue-500"
+                   placeholder="Ej: Restaurantes en Montevideo, Uruguay" />
+
+            <button type="submit" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+                Buscar
+            </button>
+        </form>
+
+        <button onclick="toggleDark()" class="border px-3 py-1 rounded whitespace-nowrap">
+            Cambiar tema
+        </button>
+    </nav>
+    
+    <div class="w-full p-5 my-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="bg-gray-100 dark:bg-gray-800 rounded-xl p-4 shadow hover:shadow-lg transition-shadow">
+                <h3 class="font-bold text-lg mb-2">Total</h3>
+                <p class="text-gray-600 dark:text-gray-400 text-sm">{{ restaurants|length }} restaurantes</p>
+            </div>
+            <div class="bg-gray-100 dark:bg-gray-800 rounded-xl p-4 shadow hover:shadow-lg transition-shadow">
+                <h3 class="font-bold text-lg mb-2">Con Web</h3>
+                <p class="text-gray-600 dark:text-gray-400 text-sm">{{ restaurants|selectattr('website')|list|length }} tienen sitio</p>
+            </div>
+            <div class="bg-gray-100 dark:bg-gray-800 rounded-xl p-4 shadow hover:shadow-lg transition-shadow">
+                <h3 class="font-bold text-lg mb-2">Instagram</h3>
+                <p class="text-gray-600 dark:text-gray-400 text-sm">{{ restaurants|selectattr('instagram')|list|length }} tienen IG</p>
+            </div>
+            <div class="bg-gray-100 dark:bg-gray-800 rounded-xl p-4 shadow hover:shadow-lg transition-shadow">
+                <h3 class="font-bold text-lg mb-2">Teléfono</h3>
+                <p class="text-gray-600 dark:text-gray-400 text-sm">{{ restaurants|selectattr('phone')|list|length }} con teléfono</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="w-full p-5">
+        <div id="loading" class="hidden text-center py-8">
+            <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            <p class="mt-2 text-gray-600 dark:text-gray-400">Buscando en Google Maps...</p>
+        </div>
+        
+        <div id="results" class="overflow-x-auto rounded-xl shadow">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-gray-100 dark:bg-gray-800">
+                        <th class="p-3 border-b dark:border-gray-700 font-semibold">ID</th>
+                        <th class="p-3 border-b dark:border-gray-700 font-semibold">Nombre</th>
+                        <th class="p-3 border-b dark:border-gray-700 font-semibold">Teléfono</th>
+                        <th class="p-3 border-b dark:border-gray-700 font-semibold">Redes</th>
+                        <th class="p-3 border-b dark:border-gray-700 font-semibold">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    {% for restaurant in restaurants %}
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50 border-b dark:border-gray-700">
+                        <td class="p-3">{{ loop.index }}</td>
+                        <td class="p-3 font-medium">{{ restaurant.name }}</td>
+                        <td class="p-3">{{ restaurant.phone }}</td>
+                        <td class="p-3">
+                            {% if restaurant.instagram %}
+                            <a href="{{ restaurant.instagram }}" target="_blank" class="text-blue-500 hover:underline">Instagram</a>
+                            {% endif %}
+                        </td>
+                        <td class="p-3">
+                            {% if restaurant.website %}
+                            <a href="{{ restaurant.website }}" target="_blank" class="text-blue-500 hover:underline mr-2">Web</a>
+                            {% endif %}
+                            <button class="text-red-500 hover:text-red-700">Eliminar</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+
+<script>
+function toggleDark(){
+    const html = document.documentElement
+
+    html.classList.toggle("dark")
+
+    if(html.classList.contains("dark")){
+        localStorage.setItem("theme","dark")
+    }else{
+        localStorage.setItem("theme","light")
+    }
+}
+
+if(localStorage.getItem("theme") === "dark"){
+    document.documentElement.classList.add("dark")
+}
+
+document.getElementById('searchForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const formData = new FormData(e.target);
+    const search = formData.get('search');
+    const btn = e.target.querySelector('button[type="submit"]');
+    const loading = document.getElementById('loading');
+    const results = document.getElementById('results');
+    const tbody = document.getElementById('tableBody');
+    
+    btn.disabled = true;
+    btn.textContent = 'Buscando...';
+    loading.classList.remove('hidden');
+    results.classList.add('hidden');
+    
+    try {
+        const response = await fetch('/restaurants', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ search })
+        });
+        
+        console.log('Response status:', response.status);
+        
+        if (!response.ok) {
+            throw new Error('Error: ' + response.status);
+        }
+        
+        const restaurants = await response.json();
+        console.log('Data received:', restaurants);
+        
+        tbody.innerHTML = '';
+        
+        if (restaurants.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="p-3 text-center text-gray-500">No se encontraron resultados</td></tr>';
+        } else {
+            restaurants.forEach((r, i) => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-gray-50 dark:hover:bg-gray-800/50 border-b dark:border-gray-700';
+                row.innerHTML = `
+                    <td class="p-3">${i + 1}</td>
+                    <td class="p-3 font-medium">${r.name || '-'}</td>
+                    <td class="p-3">${r.phone || '-'}</td>
+                    <td class="p-3">${r.instagram ? `<a href="${r.instagram}" target="_blank" class="text-blue-500 hover:underline">Instagram</a>` : '-'}</td>
+                    <td class="p-3">
+                        ${r.website ? `<a href="${r.website}" target="_blank" class="text-blue-500 hover:underline mr-2">Web</a>` : '-'}
+                        <button class="text-red-500 hover:text-red-700">Eliminar</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+        
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error al buscar: ' + error.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Buscar';
+        loading.classList.add('hidden');
+        results.classList.remove('hidden');
+    }
+});
+</script>
+
+</body>
+</html>
